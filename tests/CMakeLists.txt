@@ -28,6 +28,11 @@ add_test_exec(net_interface_test_pending)
 add_test_exec(net_interface_test_expiry)
 add_test_exec(net_interface_test_independence)
 
+add_test_exec(net_interface_test_hidden_1)
+add_test_exec(net_interface_test_hidden_2)
+add_test_exec(net_interface_test_hidden_3)
+add_test_exec(net_interface_test_hidden_4)
+
 add_test_exec(router_2hosts_1)
 add_test_exec(router_2hosts_2)
 add_test_exec(router_internet)

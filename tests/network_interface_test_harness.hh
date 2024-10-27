@@ -97,12 +97,24 @@ struct ExpectFrame : public Expectation<NetworkInterface>
 {
   EthernetFrame expected;
 
-  std::string description() const override { return "frame transmitted (" + summary( expected ) + ")"; }
+  std::string description() const override { 
+    if ( equal( expected, EthernetFrame({}) )) {
+      return "any frame transmitted";   
+    } else {
+      return "frame transmitted (" + summary( expected ) + ")";   
+    }
+  }
   void execute( NetworkInterface& interface ) const override
   {
     auto frame = interface.maybe_send();
+
     if ( not frame.has_value() ) {
       throw ExpectationViolation( "NetworkInterface was expected to send an Ethernet frame, but did not" );
+    }
+
+    // if an empty frame is given as expected, we are just looking for "something" to be sent.  
+    if ( equal( expected, EthernetFrame({}) )) {
+      return; 
     }
 
     if ( not equal( frame.value(), expected ) ) {

@@ -21,6 +21,10 @@ ttest(net_interface_test_pending)
 ttest(net_interface_test_expiry)
 ttest(net_interface_test_independence)
 
+ttest(net_interface_test_hidden_1)
+ttest(net_interface_test_hidden_2)
+ttest(net_interface_test_hidden_3)
+ttest(net_interface_test_hidden_4)
 
 ttest(router_2hosts_1)
 ttest(router_2hosts_2)
