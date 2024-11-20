@@ -82,6 +82,8 @@ int main()
 
   try {
     {
+      std::cout << "\n=== Starting Hidden Test #4 ===" << std::endl;
+
       const EthernetAddress local_eth = random_private_ethernet_address();
       NetworkInterfaceTestHarness test { "Hidden Test #4", local_eth, Address( "4.3.2.1", 0 ) };
 
@@ -104,12 +106,14 @@ int main()
       } 
 
       
-
+      std::cout << "\n=== Phase 1: Initial ARP Requests ===" << std::endl;
       for (int i = 0; i < host_count; i++) {
+        std::cout << "\nProcessing Host " << i << ":" << std::endl;
         const auto datagram = make_datagram("4.3.2.1", dst_string[i]);
 
         test.execute( SendDatagram { datagram, Address( next_hop_string[i], 0 ) } );
-
+        std::cout << "- Sent datagram, expecting ARP request broadcast" << std::endl;
+        
         test.execute( ExpectFrame { make_frame(
           local_eth,
           ETHERNET_BROADCAST,
@@ -119,6 +123,7 @@ int main()
         test.execute( Tick { 400 } );
 
         if (i % 2 == 0) {
+          std::cout << "- Queueing " << datagram_count << " additional datagrams to even-numbered Host " << i << std::endl;
           for (int j = 0; j < datagram_count; j ++) {
             test.execute( SendDatagram { datagram, Address( next_hop_string[i], 0 ) } );
             test.execute( ExpectNoFrame {} );
@@ -126,10 +131,14 @@ int main()
         }
       }
 
+      std::cout << "\n=== Phase 2: Waiting Period (2000ms passed) ===" << std::endl;
+      std::cout << "NOTE: ARP requests for hosts 0-2 have expired" << std::endl;
       test.execute( Tick { 2000 } );
 
+      std::cout << "\n=== Phase 3: Processing ARP Replies (Hosts 3-9 only) ===" << std::endl;
       for (int i = 0; i < host_count; i++) {
         if (i >= 3) {
+          std::cout << "\nProcessing ARP reply from Host " << i << std::endl;
           test.execute( ReceiveFrame {
             make_frame(
               remote_eth[i],
@@ -137,12 +146,14 @@ int main()
               EthernetHeader::TYPE_ARP, // NOLINTNEXTLINE(*-suspicious-*)
               serialize( make_arp( ARPMessage::OPCODE_REPLY, remote_eth[i], next_hop_string[i], local_eth, "4.3.2.1" ) ) ),
             {} } );
+          std::cout << "- Received ARP reply with MAC address" << std::endl;
 
           int expected_frames = 1; 
           
           if (i % 2 == 0) {
             expected_frames += datagram_count; 
           }
+          std::cout << "- Expecting " << expected_frames << " IPv4 frames to be sent" << std::endl;
 
           const auto datagram = make_datagram("4.3.2.1", dst_string[i]);
     
@@ -155,28 +166,40 @@ int main()
         test.execute( ExpectNoFrame {} );
       }
 
-      // one more round.  
+      std::cout << "\n=== Phase 4: Second Round of Communication ===" << std::endl;
+      std::cout << "NOTE: Hosts 0-2 had no replies, ARP requests expired since 5000ms has passed" << std::endl;
+      std::cout << "NOTE: Hosts 3-9 have valid MAC mappings in cache" << std::endl;
+      // one more round.
+      // Hosts 0-2 (no ARP replies received) has timed out:
+      //   - Original ARP requests have expired
+      //   - Pending frames should have expired
+      // For Hosts 3-9 (ARP replies received)
+      //   - MAC addresses should be cached
+      //   - Frames should be sent immediately without ARP requests
       for (int i = 0; i < host_count; i ++) {
           const auto datagram = make_datagram("4.3.2.1", dst_string[i]);
 
           test.execute( SendDatagram { datagram, Address( next_hop_string[i], 0 ) } );
 
           if (i < 3) {
+            std::cout << "Host " << i << " (no ARP reply received): Sending new ARP request" << std::endl;
             test.execute( ExpectFrame { make_frame(
               local_eth,
               ETHERNET_BROADCAST,
               EthernetHeader::TYPE_ARP,
               serialize( make_arp( ARPMessage::OPCODE_REQUEST, local_eth, "4.3.2.1", {}, next_hop_string[i] ) ) ) } );
           } else {
+            std::cout << "Host " << i << " (ARP cached): Sending IPv4 frame directly" << std::endl;
             test.execute( ExpectFrame {
               make_frame( local_eth, remote_eth[i], EthernetHeader::TYPE_IPv4, serialize( datagram ) )
             });
           }
       }
 
-
+      std::cout << "\n=== Phase 5: Testing ARP Request Handling ===" << std::endl;
       // now let's ask the interface some stuff 
       for (int i = 0; i < host_count; i++) {
+          std::cout << "\nReceiving ARP request from Host " << i << std::endl;
           test.execute( ReceiveFrame {
             make_frame(
               remote_eth[i],
@@ -192,13 +215,16 @@ int main()
             // The ordering of the two packets might vary from one implementation to another. 
             // Therefore we are not checking the content of the frames here. sending two frame
             // would be enough to pass the test.
+            std::cout << "Host " << i << " (has pending datagram): Expecting two frames (order not checked)" << std::endl;
+
             test.execute( ExpectFrame {{}}); 
             test.execute( ExpectFrame {{}});
 
             // only two packets should be sent.  
             test.execute( ExpectNoFrame {} );
           } else {
-
+            std::cout << "Host " << i << ": Sending normal ARP reply only" << std::endl;
+            
             // the rest will reply normally. 
             test.execute( ExpectFrame { make_frame(
               local_eth,
@@ -210,6 +236,8 @@ int main()
           }
           
       }
+      
+      std::cout << "\n=== Test #4 Completed Successfully ===" << std::endl;
     }
   } catch ( const exception& e ) {
     cerr << e.what() << endl;

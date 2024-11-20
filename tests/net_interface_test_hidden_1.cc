@@ -82,18 +82,22 @@ int main()
 
   try {
     {
+      std::cout << "\n=== Starting Hidden Test #1 ===" << std::endl;
+
+      // Create a network interface with random local Ethernet address
       const EthernetAddress local_eth = random_private_ethernet_address();
       NetworkInterfaceTestHarness test { "Hidden Test #1", local_eth, Address( "4.3.2.1", 0 ) };
 
-      
+      // Setup base addresses for destination and next hop
       Address base_dst = Address("13.12.11.10", 0); 
       Address base_next_hop = Address("192.168.0.1", 0); 
       
+      // Maps to store generated addresses
       std::map<int, EthernetAddress> remote_eth; 
       std::map<int, std::string> dst_string;  
       std::map<int, std::string> next_hop_string; 
 
-      for (int i = 0; i < host_count; i ++) {
+      for (int i = 0; i < host_count; i ++) {        
           std::string this_dst_string = address_plus_number(base_dst, i); 
           std::string this_next_hop_string = address_plus_number(base_next_hop, i); 
           const EthernetAddress this_remote_eth = random_private_ethernet_address();
@@ -105,26 +109,35 @@ int main()
 
       
       // send out some datagrams. expect to see some requests generated. 
+      std::cout << "\n=== Testing ARP Request Behavior ===" << std::endl;
       for (int i = 0; i < host_count; i++) {
+        std::cout << "\nProcessing Host " << i << ":" << std::endl;
         const auto datagram = make_datagram("4.3.2.1", dst_string[i]);
 
+        // Create and send a datagram
         test.execute( SendDatagram { datagram, Address( next_hop_string[i], 0 ) } );
+        std::cout << "- Sent initial datagram, expecting ARP request" << std::endl;
 
         test.execute( ExpectFrame { make_frame(
           local_eth,
           ETHERNET_BROADCAST,
           EthernetHeader::TYPE_ARP,
           serialize( make_arp( ARPMessage::OPCODE_REQUEST, local_eth, "4.3.2.1", {}, next_hop_string[i] ) ) ) } );
+        std::cout << "- Verified ARP request broadcast" << std::endl;
 
         test.execute( Tick { 400 } );
 
         if (i % 2 == 0) {
+          std::cout << "- Queueing " << datagram_count << " additional datagrams to even-numbered Host " << i << std::endl;
+
           for (int j = 0; j < datagram_count; j ++) {
             test.execute( SendDatagram { datagram, Address( next_hop_string[i], 0 ) } );
             test.execute( ExpectNoFrame {} );
           }
         }
       }
+
+      std::cout << "\n=== Test #1 Completed Successfully ===" << std::endl;
     }
   } catch ( const exception& e ) {
     cerr << e.what() << endl;
